@@ -3,6 +3,8 @@ import sharp from 'sharp';
 import {v4 as uuidv4} from 'uuid';
 import crypto from 'crypto';
 import asyncHandler from 'express-async-handler'
+import { OAuth2Client } from 'google-auth-library';
+import QRCode from 'qrcode';
 import User from '../Models/userModel.js';
 import apiError from '../utils/apiError.js';
 import { sanitizeUser } from '../utils/sanitize.js';
@@ -66,39 +68,40 @@ export const resizeUserImages = asyncHandler(async (req, res, next) => {
 // @route   POST/api/v1/auth/signup
 // @access  Public
 export const signup = asyncHandler(async (req, res, next) => {
-
   const verificationCode = crypto.randomInt(100000, 999999).toString();
   const verificationCodeExpiresAt = Date.now() + 60 * 60 * 1000;
 
+  const qrcode = await QRCode.toDataURL(req.body.email);
   const user = await User.create({
-      name: req.body.name,
-      phone: req.body.phone,  
-      email: req.body.email,
-      password: req.body.password,
-      profile_picture: req.body.profile_picture,
-      isVerified: false,
-      verificationCode,
-      verificationCodeExpiresAt
+    name: req.body.name,
+    phone: req.body.phone,
+    email: req.body.email,
+    password: req.body.password,
+    profile_picture: req.body.profile_picture,
+    qrCode: qrcode,
+    isVerified: false,
+    verificationCode,
+    verificationCodeExpiresAt
   });
 
   if (!user) {
-      return next(new apiError('User creation failed', 500));
+    return next(new apiError('User creation failed', 500));
   }
 
   try {
-      await sendVerificationEmail(user.email, user.name, verificationCode);
+    await sendVerificationEmail(user.email, user.name, verificationCode);
   } catch (error) {
-      user.passwordResetCode = undefined;
-      user.passwordResetExpiresAt = undefined;
-      user.passwordResetVerified = undefined;
-      await user.save();
-      return next(new apiError('Failed to send verification code email. Please try again.', 500));
+    user.passwordResetCode = undefined;
+    user.passwordResetExpiresAt = undefined;
+    user.passwordResetVerified = undefined;
+    await user.save();
+    return next(new apiError('Failed to send verification code email. Please try again.', 500));
   }
   user.status = 'online';
   await user.save();
   res.status(201).json({
-      status: 'success',
-      message: 'Verification code sent to your email. Please verify your account'
+    status: 'success',
+    message: 'Verification code sent to your email. Please verify your account'
   });
 });
 
@@ -129,23 +132,103 @@ export const verifyEmail = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Login with QR Code
+// @route   POST/api/v1/auth/qr-login
+// @access  private
 
 // @desc    Login
 // @route   POST/api/v1/auth/login
 // @access  Public
 export const login = asyncHandler(async (req, res, next) => {
-
-  const user = await User.findOne({ email: req.body.email });
-  if (!user || !(await bcrypt.compare(req.body.password, user.password))) {
+  const { email, password, qrCode } = req.body;
+  if (qrCode) {
+    const user = await User.findOne({ qrCode });
+    if (user) {
+      const token = generateToken(user._id, res);
+      delete user.password;
+      user.status = 'online';
+      user.lastOnline = Date.now();
+      res.status(200).json({
+        message: 'User logged in via QR Code',
+        data: sanitizeUser(user), token
+      });
+    } else {
+      res.status(404).json({
+        message: 'User not found with this QR code'
+      });
+    }
+  } else if (email && password) {
+    const user = await User.findOne({ email });
+    if (!user || !(await bcrypt.compare(req.body.password, user.password))) {
       return next(new apiError('Incorrect email or password', 401));
+    }
+    else {
+      res.status(400).json({
+        message: 'Invalid email or password'
+      });
+    }
+  }
+  res.status(200).json({
+    message: 'User logged in successfully', user
+  });
+}
+);
+
+export const generateQrcode = asyncHandler(async (req, res, next) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User not found' });
   }
 
-  const token = generateToken(user._id, res);
-  delete user.password;
-  user.status = 'online';
-  user.lastOnline = Date.now();
-  res.status(200).json({ data: sanitizeUser(user), token });
+  QRCode.toDataURL(userId, (err, url) => {
+    if (err) {
+      return res.status(500).json({ error: 'error in generating Qrcode' });
+    }
+    res.json({ qrcode: url });
+  });
 });
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// @desc   Login with google
+// @route  POST/api/v1/auth/google
+// @access private
+export const googleLogin = asyncHandler(async (req, res, next) => {
+  
+  const { id_token } = req.body;
+  console.log("Received token:", id_token);
+console.log("Expected audience:", process.env.GOOGLE_CLIENT_ID);
+  try {
+    // تحقق من صحة التوكن
+    const ticket = await client.verifyIdToken({
+      idToken: id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, sub: googleId } = payload;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({ email, name, avatar: picture });
+    }
+    const token = generateToken(user._id, res);
+
+    res.json({
+      success: true, 
+      token,
+      user: {
+        id: user._id,
+        email, 
+        name } });
+  } catch (error) {
+    console.error(error);
+    res.status(401).json({ success: false, message: 'Invalid Google token' });
+  }
+});
+
 
 
 // @desc   Forget password

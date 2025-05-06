@@ -40,6 +40,10 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
+    qrCode: {
+        type: String,
+        required: true
+    },
     resetPasswordToken: String,
     resetPasswordTokenExpiration: Date,
     passwordResetVerified : Boolean,

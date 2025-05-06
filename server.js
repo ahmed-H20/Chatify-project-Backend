@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
 import connectDb from './config/db.js';
 import auth from './routes/authRoute.js';
 import userRoute from './routes/userRoute.js';
@@ -11,16 +12,19 @@ import groupRoute from './routes/groupRoute.js';
 import conversationRoute from './routes/conversationRoute.js';
 import storyRouter from './routes/storyRoute.js';
 import globalError  from './middlewares/errorMiddleware.js';
+import chatbotRouter from './routes/chatbotRoute.js';
 //import server from './socket/socket.js';
 
 dotenv.config();
 // connection to DB
 connectDb();
 const app = express();
-app.use(express.json());
+//app.use(express.json());
 app.use(cookieParser());
 app.use(cors());
 app.options('*', cors());
+app.use(bodyParser.json());
+
 
 app.use('/api/v1/auth', auth);
 app.use('/api/v1/user', userRoute);
@@ -29,6 +33,7 @@ app.use('/api/v1/call', callRoute);
 app.use('/api/v1/group', groupRoute);
 app.use('/api/v1/conversation', conversationRoute);
 app.use('/api/v1/story', storyRouter);
+app.use('/api/v1/chatbot',chatbotRouter);
 
 
 app.use('*',(req,res,next ) =>{
@@ -36,6 +41,7 @@ app.use('*',(req,res,next ) =>{
 });
 
 app.use(globalError);
+
 
 const PORT = process.env.PORT;
 app.listen(PORT,()=>

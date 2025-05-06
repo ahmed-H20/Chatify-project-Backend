@@ -5,11 +5,14 @@ import{
     verifyEmail,
     resizeUserImages,
     login,
+    googleLogin,
+    generateQrcode,
     logout,
     checkAuth,
     forgetPassword,
     verifyResetToken,
-    resetPassword}
+    resetPassword,
+}
 from '../controller/authController.js';
 
 import { 
@@ -30,6 +33,12 @@ auth.route('/signup')
 // login 
 auth.route('/login')
     .post(loginValidator,login);
+// generate qrcode
+auth.route('/generate-qrcode')
+    .post(generateQrcode);
+// google login
+auth.route('/google')
+    .post(googleLogin);
 // verify email
 auth.route('/verify-email')
     .post(verifyEmail);
