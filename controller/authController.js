@@ -140,8 +140,8 @@ export const verifyEmail = asyncHandler(async (req, res, next) => {
 // @route   POST/api/v1/auth/login
 // @access  Public
 export const login = asyncHandler(async (req, res, next) => {
-  const { email, password, qrCode } = req.body;
-  if (qrCode) {
+  const { email, password, } = req.body;
+  /*if (qrCode) {
     const user = await User.findOne({ qrCode });
     if (user) {
       const token = generateToken(user._id, res);
@@ -157,22 +157,22 @@ export const login = asyncHandler(async (req, res, next) => {
         message: 'User not found with this QR code'
       });
     }
-  } else if (email && password) {
+  } */ 
     const user = await User.findOne({ email });
-    if (!user || !(await bcrypt.compare(req.body.password, user.password))) {
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return next(new apiError('Incorrect email or password', 401));
     }
-    else {
-      res.status(400).json({
-        message: 'Invalid email or password'
-      });
-    }
-  }
+    const token = generateToken(user._id, res);
+    delete user.password;
+    user.status = 'online';
+    await user.save();
   res.status(200).json({
-    message: 'User logged in successfully', user
+    message: 'User logged in successfully', 
+    data : user,
+    token
   });
-}
-);
+});
+
 
 export const generateQrcode = asyncHandler(async (req, res, next) => {
   const { userId } = req.body;

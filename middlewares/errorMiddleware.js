@@ -41,7 +41,8 @@
 import ApiError from "../utils/apiError.js";
 
 const sendErrorForDev = (err, res) => {
-    return res.status(err.statusCode).json({
+    if (res.headersSent) return;
+     res.status(err.statusCode).json({
         status: err.status,
         error: err,
         message: err.message,
@@ -69,6 +70,8 @@ const handleJwtExpired = () =>
     new ApiError('Expired token, please log in again.', 401);
 
 const globalError = (err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    sendErrorForDev(err, req, res);
     err.statusCode = err.statusCode || 500;
     err.status = err.status  || 'error';
 
