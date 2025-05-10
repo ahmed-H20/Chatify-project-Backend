@@ -128,7 +128,7 @@ export const verifyEmail = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
       status: 'success',
-      message: 'Email verified successfully. You can now log in.',
+      message: 'Email verified successfully. You can now log in..',
   });
 });
 
