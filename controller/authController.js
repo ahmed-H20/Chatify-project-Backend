@@ -111,13 +111,10 @@ export const signup = asyncHandler(async (req, res, next) => {
 // @route   POST /api/auth/verify-email
 // @access  Public
 export const verifyEmail = asyncHandler(async (req, res, next) => {
-  const {verificationCode , email} = req.body;
+  const {verificationCode } = req.body;
 
   if (!verificationCode) {
       return next(new apiError('Verification code is required', 400));
-  }
-  if (!email) {
-      return next(new apiError('Email is required', 400));
   }
   const hashedVerificationCode = crypto.createHash("sha256").update(verificationCode).digest("hex");
   const user = await User.findOne({
