@@ -19,7 +19,10 @@ export const  protectRoute =asyncHandler(async(req,res,next)=>{
     const user = await User.findById(decoded.userId).select('-password');
         if(!user){
             return next(new Error('The user that belong to this token does no longer exist',404));
-        } 
+        }
+        if(user.status === 'offline'){
+            return next(new Error('This user is no longer active',401));
+        }
         req.user = user;
         next();
 });     

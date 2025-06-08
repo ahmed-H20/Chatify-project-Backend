@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema({
     },
     about :{
         type : String,
-        default : 'Hey friends , I am using chat app',   
+        default : 'Hey friends , I am using chatify',   
     },
     lastOnline : {
         type: Date,

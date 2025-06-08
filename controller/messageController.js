@@ -24,13 +24,15 @@ export const sendMessage = asyncHandler(async(req,res,next) => {
                 participants : [senderId, receiverId]
             });
         }
-        const roomId = generateRoomId(senderId, receiverId);
+        const roomId = generateRoomId(...conversation.participants);
         const newMessage = new Message({
             senderId,
             receiverId,
-            participants:[senderId,receiverId],
+           // participants,
             messageType,
             roomId,  
+            isRead: false,
+            seenBy: senderId,
         });
         console.log(roomId);
         if(!newMessage){
@@ -57,13 +59,13 @@ export const sendMessage = asyncHandler(async(req,res,next) => {
 export const getMessages = asyncHandler(async(req,res,next)=>{
     try{
 
-        const {id:userToChatId} = req.params;
-        const senderId = req.user._id;
+        const {id:userToChatId} = req.params; // Receiver id
+        //const senderId = req.user._id;
         if(!req.user || !req.user._id){
             return next(new apiError('User not authenticated', 401));
         }
-        if(!senderId){
-            return next(new apiError('User not authenticated', 401));
+        if(!userToChatId){
+            return next(new apiError('User to chat id not found', 400));
         }
         const conversation = await Conversation.findOne({
             participants: {$all: [senderId, userToChatId]}
@@ -114,7 +116,14 @@ export const updateMessage = asyncHandler(async(req,res,next)=>{
         }
         const message = await Message.findById(messageId);
         if(!message){
-            return res.status(200).json({message: 'Message not found'});
+            return next(new apiError('Message not found', 404));
+        }
+        const oneHour = 60 * 60 * 60 * 1000; // 1 hour in milliseconds
+        const currentTime = new Date();
+        const messageTime = new Date(message.createdAt);
+        const timeDiff = currentTime - messageTime;
+        if(timeDiff > oneHour){
+            return next(new apiError('Message cannot be updated after 1 hour', 400));
         }
         const updatedMessage = await Message.findByIdAndUpdate(
             messageId,
@@ -144,7 +153,14 @@ export const deleteMessage = asyncHandler(async(req,res,next)=>{
         if(!message){
             return res.status(200).json({message: 'Message not found'});
         }
-         await Message.findByIdAndDelete(messageId);
+        await Message.findByIdAndDelete(messageId);
+        const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+        const currentTime = new Date();
+        const messageTime = new Date(message.createdAt);
+        const timeDiff = currentTime - messageTime;
+        if(timeDiff > oneHour){
+            return next(new apiError('Message cannot be deleted after 1 hour', 400));
+        } 
         res.status(200).json({
             message: 'Message deleted',
         });
@@ -153,21 +169,62 @@ export const deleteMessage = asyncHandler(async(req,res,next)=>{
         return next(new apiError('Server Error',500));
     }
 });
+// @desc    Get unread messages
+// @route   GET/api/v1/message/unreadMessages
+// @access  Private
+export const getUnreadMessages = asyncHandler(async (req, res, next) => {
+    try {
+        if (!req.user || !req.user._id) {
+            return next(new apiError('User not authenticated', 401));
+        }
+
+        const receiverId = req.user._id;
+        const unread = await Message.find({ receiver: receiverId, isRead: false });
+
+        res.status(200).json({ data: unread });
+    } catch (err) {
+        console.log('Error getting unread messages:', err.message);
+        next(new apiError('Server error', 500));
+    }
+});
+// @desc    Post mark messages as read
+// @route   POST/api/v1/message/markMessagesAsRead
+// @access  Private
+export const markMessagesAsRead = asyncHandler(async (req, res, next) => {
+    try {
+        const { senderId } = req.body;
+        const receiverId = req.user._id;
+
+        if (!senderId || !receiverId) {
+            return next(new apiError('Sender and receiver are required', 400));
+        }
+
+        await Message.updateMany(
+            { sender: senderId, receiver: receiverId, isRead: false },
+            { isRead: true }
+        );
+
+        res.status(200).json({ message: 'Messages marked as read' });
+    } catch (err) {
+        console.log('Error marking messages as read:', err.message);
+        next(new apiError('Server error', 500));
+    }
+});
+// @desc    Get count unread messages
+// @route   GET/api/v1/message/countUnreadMessages
+// @access  Private
+export const countUnreadMessages = asyncHandler(async (req, res, next) => {
+    try {
+        const receiverId = req.user._id;
+
+        const count = await Message.countDocuments({ receiver: receiverId, isRead: false });
+
+        res.status(200).json({ unreadCount: count });
+    } catch (err) {
+        console.log('Error counting unread messages:', err.message);
+        next(new apiError('Server error', 500));
+    }
+});
 
 
-// GET unread messages
-export const unreadMessage = asyncHandler(async(req, res) => {
-    const unread = await Message.find({ receiver: req.params.receiverId, isRead: false });
-    res.json(unread);
-  });
-  // POST to mark as read
-export const markAsRead = asyncHandler(async (req, res) => {
-    const { senderId, receiverId } = req.body;
-    await Message.updateMany({ sender: senderId, receiver: receiverId }, { isRead: true });
-    res.json({ message: 'Marked as read' });
-  });
- export const unreadMessages = asyncHandler(async (req, res) => {
-    const messages = await Message.find({ receiverId: req.params.userId, isRead: false });
-    res.json(messages);
-  });
     

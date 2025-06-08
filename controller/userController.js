@@ -1,25 +1,34 @@
 import asyncHandler from 'express-async-handler'
 import User from '../Models/userModel.js';
+import Conversation from '../Models/conversationModel.js';
 import apiError from '../utils/apiError.js';
 import cloudinary from '../utils/cloudinary.js';
 import {sanitizeUsersForSidebar} from '../utils/sanitize.js';
 
 
 // Get all users in sidebar
-export const getUsersForSidebar =asyncHandler(async(req, res, next)=>{
-    try{
-        const loggedInUserId = req.user._id;
-        
-        const users = await User.find({ _id: {$ne : loggedInUserId}});
-        if(users.length == 0){
-            return res.status(200).json([]);
-        }
-        res.status(200).json({data: users.map(sanitizeUsersForSidebar)});
-    }catch(err){
-        console.log('Error in get users for sidebar',err.message);
-        return next(new apiError('Server Error',500));
-    }
+export const getUsersForSidebar = asyncHandler(async (req, res, next) => {
+    const loggedInUserId = req.user._id;
+    // نجيب كل المحادثات اللي يشارك فيها المستخدم
+    const conversations = await Conversation.find({
+        participants: loggedInUserId
+    }).select('participants');
+
+    const userIds = new Set();
+
+    conversations.forEach(conv => {
+        conv.participants.forEach(participantId => {
+            if (participantId.toString() !== loggedInUserId.toString()) {
+                userIds.add(participantId.toString());
+            }
+        });
+    });
+
+    const users = await User.find({ _id: { $in: Array.from(userIds) } });
+
+    res.status(200).json({ data: users.map(sanitizeUsersForSidebar) });
 });
+
 
 // Get specific users for sidebar
 export const getUserForSidebar =asyncHandler(async(req, res, next)=>{

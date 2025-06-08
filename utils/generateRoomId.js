@@ -1,6 +1,6 @@
 // utils/generateRoomId.js
-export function generateRoomId(user1, user2) {
-    return [user1, user2].sort().join('-');
+export function generateRoomId(...userIds) {
+    return userIds.sort().join('-');
   }
   
 

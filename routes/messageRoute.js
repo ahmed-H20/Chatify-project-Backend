@@ -1,8 +1,15 @@
 import express from 'express';
 
-import {sendMessage,getMessages,getMessage,updateMessage,deleteMessage,
-        unreadMessage,markAsRead,unreadMessages} 
-    from '../controller/messageController.js';
+import {
+    sendMessage,
+    getMessages,
+    getMessage,
+    updateMessage,
+    deleteMessage,
+    getUnreadMessages,
+    markMessagesAsRead,
+    countUnreadMessages 
+}from '../controller/messageController.js';
 
 import {createMessageValidator , getMessageValidator , deleteMessageValidator} 
     from '../utils/validators/messageValidator.js'
@@ -27,15 +34,15 @@ messageRoute.route('/updateMessage/:id')
 // Delete Message
 messageRoute.route('/deleteMessage/:id')
     .delete(protectRoute,deleteMessage);
-// Get Unread Message
-messageRoute.route('/unreadMessage/:receiverId')
-    .get(protectRoute,unreadMessage);
-// Mark Message as Read
-messageRoute.route('/markAsRead/:senderId/:receiverId')
-    .post(protectRoute,markAsRead);
-// Get Unread Messages
-messageRoute.route('/unreadMessages/:senderId/:receiverId')
-    .get(protectRoute,unreadMessages);
+// Unread Message
+messageRoute.route('/unreadMessage')
+    .get(protectRoute,getUnreadMessages);
+// Mark As Read 
+messageRoute.route('/markAsRead/:id')
+    .put(protectRoute,markMessagesAsRead);
+// Unread Messages
+messageRoute.route('/unreadMessages/:id')
+    .get(protectRoute,countUnreadMessages);
 
 
 export default messageRoute;

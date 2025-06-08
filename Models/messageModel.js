@@ -28,7 +28,7 @@ const messageSchema = new mongoose.Schema({
          type: mongoose.Schema.Types.ObjectId,
           ref: 'User' ,
     },
-    userSeen:{
+    isRead:{
         type: Boolean,
         default: false
     }

@@ -51,49 +51,24 @@ export const loginValidator = [
       .withMessage('Email is required')
       .isEmail()
       .withMessage('Invalid email address')
-      .custom((val) =>
-        User.findOne({ email: val }).then((user) => {
+      .custom(async(val) =>{
+        const user = await User.findOne({ email: val })
           if (!user) {
-            return Promise.reject(new Error("Invalid email or password"));
+            throw new Error("Invalid email or password");
           }
-        })),
+          if(!user.isVerified) {
+            throw new Error("Email not verified");
+          }
+        }),
+
   check('password')
       .notEmpty()
       .withMessage('Password is required')
-      .isLength({ min: 6 })
-      .withMessage('Password must be at least 6 characters'),
+      .isLength({ min: 5 })
+      .withMessage('Password must be at least 5 characters'),
+  
 
   validatorMiddleware
 ];
-// export const loginValidator = [
-//   check("email")
-//     .notEmpty()
-//     .withMessage("Email is required")
-//     .isEmail()
-//     .withMessage("Please enter a valid email"),
-//   check("password")
-//     .notEmpty()
-//     .withMessage("Password is required")
-//     .isLength({ min: 5 })
-//     .withMessage("Password must be at least 5 characters long"),
-//   validatorMiddleware,
-// ];
-// export const loginWebSiteValidator = [
-//   check('phone')
-//    .notEmpty()
-//    .withMessage("Phone is required")
-//    .isMobilePhone(['ar-EG'])
-//    .withMessage('Invalid phone number'),
-//   check("email")
-//     .notEmpty()
-//     .withMessage("Email is required")
-//     .isEmail()
-//     .withMessage("Please enter a valid email"),
-//   check("password")
-//     .notEmpty()
-//     .withMessage("Password is required")
-//     .isLength({ min: 5 })
-//     .withMessage("Password must be at least 5 characters long"),
-//   validatorMiddleware,
-// ];
+
 

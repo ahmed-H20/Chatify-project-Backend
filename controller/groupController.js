@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler'
 import apiError from '../utils/apiError.js';
 import Message from '../Models/messageModel.js';
 import Conversation from '../Models/conversationModel.js';
+import { generateRoomId } from '../utils/generateRoomId.js';
 
 
 // @desc    Create group chat
@@ -24,7 +25,7 @@ export const createGroupConversation = asyncHandler(async(req,res,next)=>{
             participants: {$all:participants},
             isGroup:true,
         });
-        const roomId = generateRoomId(senderId, receiverId);
+        const roomId = generateRoomId(...participants);
         if(!conversation){
             conversation = await Conversation.create({
                 participants,
@@ -83,8 +84,10 @@ export const getGroupConversation = asyncHandler(async(req,res,next)=>{
         if(!req.user || !req.user._id){
             return next(new apiError('User not authenticated', 401));
         }
-        const conversation = await Conversation.find({isGroup:true})
-        .populate({path : 'messages',select : '_id messageType'})
+        const conversation = await Conversation.find({
+            isGroup:true,
+            participants: req.user._id,
+    })
         .populate({path : 'participants',select : '_id name'});
         if(!conversation){
             return next(new apiError('Groups not found', 404));

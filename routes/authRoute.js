@@ -10,7 +10,7 @@ import{
     logout,
     checkAuth,
     forgetPassword,
-    verifyResetToken,
+    verifyResetPassword,
     resetPassword,
 }
 from '../controller/authController.js';
@@ -30,6 +30,9 @@ const auth = express.Router();
 // sign up  
 auth.route('/signup')
     .post(uploadUserImage,resizeUserImages,signupValidator,signup);
+// verify email
+auth.route('/verify-email')
+    .post(verifyEmail);
 // login 
 auth.route('/login')
     .post(loginValidator,login);
@@ -39,17 +42,15 @@ auth.route('/generate-qrcode')
 // google login
 auth.route('/google')
     .post(googleLogin);
-// verify email
-auth.route('/verify-email')
-    .post(verifyEmail);
+
 // auth.route('/login/webBrowser')
 // .post(loginWebSiteValidator,loginWebSite);
 // Forget Password
 auth.route('/forgetPassword')
 .post(protectRoute,forgetPassword);
 // Forget Password
-auth.route('/verifyResetToken')
-.post(verifyResetToken);
+auth.route('/verifyResetPassword')
+.post(verifyResetPassword);
 // Forget Password
 auth.route('/resetPassword')
 .post(resetPassword);

@@ -2,11 +2,39 @@ import asyncHandler from 'express-async-handler'
 import apiError from '../utils/apiError.js';
 import Conversation from '../Models/conversationModel.js';
 
-
 // @desc    Get private conversation
 // @route   GET/api/v1/conversation/privateConversation
 // @access  Public
 export const getPrivateConversation = asyncHandler(async (req, res, next) => {
+    try {
+
+        if (!req.user || !req.user._id) {
+            return next(new apiError('User not authenticated', 401));
+        }
+
+
+        const conversation = await Conversation.find({
+            conversation,
+            isGroup: true, 
+        }).populate({
+            path: 'messages',
+            select: '_id messageType', 
+        });
+
+        if (!conversation) {
+            return next(new apiError('Private conversation not found', 404));
+        }
+        return res.status(200).json({ data: conversation });
+    } catch (err) {
+        console.log('Error in get private conversation', err.message);
+        return next(new apiError('Server Error', 500));
+    }
+});
+
+// @desc    Get private conversation
+// @route   GET/api/v1/conversation/privateConversation
+// @access  Public
+export const getPrivateConversationById = asyncHandler(async (req, res, next) => {
     try {
         const conversationId = req.params.id;
 
@@ -37,26 +65,25 @@ export const getPrivateConversation = asyncHandler(async (req, res, next) => {
 });
 
 // @desc    Get all conversation
-// @route   GET/api/v1/conversation/getUserChats
+// @route   GET/api/v1/conversation/allPrivateConversation
 // @access  Public
-export const getUserChats = asyncHandler(async (req, res, next) => {
+export const getAllPrivateConversation = asyncHandler(async (req, res, next) => {
     try {
         if (!req.user || !req.user._id) {
             return next(new apiError('User not authenticated', 401));
         }
-        // استرجاع كل المحادثات الخاصة اللي المستخدم طرف فيها
         const conversations = await Conversation.find({
             participants: req.user._id,
-            isGroup: false,
+            isGroup: false, 
         })
         .populate({
             path: 'participants',
-            select: '_id name ', // تعديل على حسب بيانات المستخدم
+            select: '_id name ', 
         })
         .populate({
             path: 'messages',
-            select: '-participants -roomId', // تعديل على حسب بيانات الرسالة
-            options: { sort: { createdAt: -1 } }, // ترتيب الرسائل من الأحدث للأقدم
+            select: '-participants -roomId', 
+            options: { sort: { createdAt: -1 } }, 
         });
 
         if (!conversations || conversations.length === 0) {

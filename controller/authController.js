@@ -70,17 +70,22 @@ export const resizeUserImages = asyncHandler(async (req, res, next) => {
 export const signup = asyncHandler(async (req, res, next) => {
   const verificationCode = crypto.randomInt(100000, 999999).toString();
   const verificationCodeExpiresAt = Date.now() + 60 * 60 * 1000;
-
+  const hashedverificationCode = crypto.createHash("sha256").update(verificationCode).digest("hex");
+  const { name , phone , email, password , confirmPassword} = req.body;
   const qrcode = await QRCode.toDataURL(req.body.email);
+  if(password !== confirmPassword){
+    return next(new apiError('Password and Confirm Password do not match', 400));
+  }
   const user = await User.create({
-    name: req.body.name,
-    phone: req.body.phone,
-    email: req.body.email,
-    password: req.body.password,
+    name,
+    phone,
+    email,
+    password,
+    confirmPassword,
     profile_picture: req.body.profile_picture,
     qrCode: qrcode,
     isVerified: false,
-    verificationCode,
+    verificationCode: hashedverificationCode,
     verificationCodeExpiresAt
   });
 
@@ -91,14 +96,11 @@ export const signup = asyncHandler(async (req, res, next) => {
   try {
     await sendVerificationEmail(user.email, user.name, verificationCode);
   } catch (error) {
-    user.passwordResetCode = undefined;
+    user.verificationCode = undefined;
     user.passwordResetExpiresAt = undefined;
-    user.passwordResetVerified = undefined;
     await user.save();
     return next(new apiError('Failed to send verification code email. Please try again.', 500));
   }
-  user.status = 'online';
-  await user.save();
   res.status(201).json({
     status: 'success',
     message: 'Verification code sent to your email. Please verify your account'
@@ -109,18 +111,24 @@ export const signup = asyncHandler(async (req, res, next) => {
 // @route   POST /api/auth/verify-email
 // @access  Public
 export const verifyEmail = asyncHandler(async (req, res, next) => {
-  const { email, verificationCode } = req.body;
+  const {verificationCode , email} = req.body;
 
+  if (!verificationCode) {
+      return next(new apiError('Verification code is required', 400));
+  }
+  if (!email) {
+      return next(new apiError('Email is required', 400));
+  }
+  const hashedVerificationCode = crypto.createHash("sha256").update(verificationCode).digest("hex");
   const user = await User.findOne({
-      email,
-      verificationCode,
+      verificationCode: hashedVerificationCode,
       verificationCodeExpiresAt: { $gt: Date.now() }
   });
 
   if (!user) {
       return next(new apiError('Invalid or expired verification code', 400));
   }
-
+  const token = generateToken(user._id, res);
   user.isVerified = true;
   user.verificationCode = undefined;
   user.verificationCodeExpiresAt = undefined;
@@ -129,6 +137,7 @@ export const verifyEmail = asyncHandler(async (req, res, next) => {
   res.status(200).json({
       status: 'success',
       message: 'Email verified successfully. You can now log in..',
+      token
   });
 });
 
@@ -270,14 +279,14 @@ export const forgetPassword = asyncHandler(async (req, res, next) => {
 // @desc    Verify Password Reset Code
 // @route   POST/api/auth/verify-resetCode
 // @access  Private
-export const verifyResetToken = asyncHandler(async (req, res, next) => {
-  const { resetCode } = req.body;
+export const verifyResetPassword = asyncHandler(async (req, res, next) => {
+  const { resetCode , email } = req.body;
   const hashedResetCode = crypto
       .createHash('sha256')
       .update(resetCode)
       .digest('hex');
 
-  const user = await User.findOne({ resetPasswordToken: hashedResetCode });
+  const user = await User.findOne({ resetPasswordToken: hashedResetCode , email });
     if (!user || user.resetPasswordTokenExpiration < Date.now()) {
       return next(new apiError('Reset code invalid or expired', 400));
   }
@@ -319,7 +328,6 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
 // @route   POST/api/v1/auth/logout
 // @access  private
 export const logout = asyncHandler(async(req, res,next) => {
-  try{
     if (!req.user) {
       return next(new apiError('User not authenticated', 401));
     }
@@ -327,11 +335,8 @@ export const logout = asyncHandler(async(req, res,next) => {
     await User.findByIdAndUpdate(req.user._id, { status: 'offline' });
     res.cookie('jwt', '', {maxAge:0});
     res.status(200).json({message: 'Logged Out Successfully'});
-  }catch(err){
-    console.log(err);
-    next(new apiError('Server Error', 500));
-  }
-});
+
+  });
 
 // @desc    Check Authentication
 // @route   GET/api/v1/auth/checkAuth

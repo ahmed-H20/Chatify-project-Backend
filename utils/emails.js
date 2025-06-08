@@ -38,7 +38,7 @@ export const sendVerificationEmail = asyncHandler(async (to, username, verificat
       .replace('{verificationCode}', verificationCode);
 
   const mailOptions = {
-      from: `Chatify <${process.env.USER_EMAIL}>`,
+      from: `Chatify <${process.env.Email_USER}>`,
       to: to,
       subject: 'Email Verification Code (Valid for 1 hour)',
       html: updatedHtml,
