@@ -118,7 +118,7 @@ npm install
 npm run dev
 ```
 
-The server will run at [http://localhost:5000](http://localhost:5000)
+The server will run at [https://chatify-project-backend.vercel.app](https://chatify-project-backend.vercel.app)
 
 ---
 

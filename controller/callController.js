@@ -332,7 +332,7 @@ export const deleteCall = asyncHandler(async (req, res, next) => {
 // // Ensure the function calling fetch is marked as async
 // export const acceptCall = asyncHandler(async(req,res,next)=>{
 //     try {
-//       const response = await fetch('http://localhost:5000/api/v1/call/acceptCall', {
+//       const response = await fetch('https://chatify-project-backend.vercel.app/api/v1/call/acceptCall', {
 //         method: 'POST', // Or 'GET', depending on your API
 //         headers: {
 //           'Content-Type': 'application/json',
