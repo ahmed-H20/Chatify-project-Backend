@@ -21,6 +21,10 @@ const messageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    message: {
+        type: String,
+        required: true,
+    },
     roomId: {
         type: String, 
       },
@@ -31,7 +35,7 @@ const messageSchema = new mongoose.Schema({
     isRead:{
         type: Boolean,
         default: false
-    }
+    },   
 }, {timestamps : true}
 );
 

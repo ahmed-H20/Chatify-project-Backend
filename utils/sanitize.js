@@ -8,21 +8,33 @@ export const sanitizeUser = (user) =>{
         profile_picture: user.profile_picture,
         about: user.about,
         status: user.status,
-        lastOnline: user.lastOnline
+        lastOnline: user.lastOnline,
+        phone: user.phone
     }
 }
 
-export const sanitizeMessage = (message) =>{
-    return {
-        id: message._id,
-        messageType: message.messageType,
-        senderId: sanitizeUser(message.senderId),
-        receiverId: sanitizeUser(message.receiverId),
-        seenBy: message.seenBy? sanitizeUser(message.seenBy) : null,
-        userSeen : message.userSeen? sanitizeUser(message.userSeen) : false,
-        roomId : message.roomId,
-    }
-}
+const normalizeDate = (date) => {
+  if (!date) return null;
+  if (typeof date === "string") return date;
+  if (date instanceof Date) return date.toISOString();
+  if (typeof date === "object" && "$date" in date) return date.$date;
+  return new Date().toISOString(); // في حال لم يكن أي نوع متوقع
+};
+
+export const sanitizeMessage = (message) => {
+  return {
+    id: message._id,
+    messageType: message.messageType,
+    content: message.content,
+    senderId: sanitizeUser(message.senderId),
+    receiverId: sanitizeUser(message.receiverId),
+    seenBy: message.seenBy ? sanitizeUser(message.seenBy) : null,
+    userSeen: message.userSeen ? sanitizeUser(message.userSeen) : false,
+    roomId: message.roomId,
+    createdAt: normalizeDate(message.createdAt),   
+    updatedAt: normalizeDate(message.updatedAt),   
+  };
+};
 
 export const sanitizeUsersForSidebar = (user) => {
     return {

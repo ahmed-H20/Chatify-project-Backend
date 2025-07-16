@@ -1,6 +1,6 @@
 import express from 'express';
 
-import {getAllPrivateConversation,getPrivateConversationById} 
+import {accessPrivateConversation, getAllPrivateConversation,getPrivateConversationById} 
         from '../controller/conversationController.js';
 
 import { protectRoute } from '../middlewares/protectRoute.js';
@@ -14,5 +14,5 @@ conversationRoute.route('/privateConversation/:id')
 conversationRoute.route('/allPrivateConversation')
         .get(protectRoute,getAllPrivateConversation);
 
-
+conversationRoute.post('/accessPrivateConversation', protectRoute, accessPrivateConversation);
 export default conversationRoute;

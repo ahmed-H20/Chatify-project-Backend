@@ -114,4 +114,61 @@ export const deleteStory = asyncHandler(async (req, res, next) => {
     }
 
 });
+
+// @desc    Get a single story by ID
+// @route   GET /api/v1/story/status/:id
+// @access  Private or Public 
+export const getStoryById = asyncHandler(async (req, res, next) => {
+  try {
+    const storyId = req.params.id;
+
+    const story = await Story.findById(storyId).populate("user", "name profile_picture");
+
+    if (!story) {
+      return next(new apiError("Story not found", 404));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Story fetched successfully",
+      data: story,
+    });
+  } catch (err) {
+    console.log("Error fetching story by ID:", err);
+    next(new apiError("Server Error", 500));
+  }
+});
+
+
+
+// @desc    Get all stories for a specific user
+// @route   GET /api/v1/story/user/:userId
+// @access  Private
+export const getStoriesByUserId = asyncHandler(async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return next(new apiError('User ID is required', 400));
+    }
+
+    const stories = await Story.find({
+        user: userId,
+        createdAt: { $gt: Date.now() - 24 * 60 * 60 * 1000 },
+    })
+        .populate('user', 'name profile_picture')
+        .sort({ createdAt: 1 });
+
+    res.status(200).json({
+        success: true,
+        message: 'User stories fetched successfully',
+        data: stories,
+    });
+    } catch (err) {
+    console.log('Error getting user stories:', err);
+    next(new apiError('Server Error', 500));
+    }
+});
+
+  
   

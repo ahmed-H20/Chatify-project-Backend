@@ -8,59 +8,121 @@ import {generateRoomId} from '../utils/generateRoomId.js';
 // @desc    Create message
 // @route   POST/api/v1/message/sendMessage/id
 // @access  Public
-export const sendMessage = asyncHandler(async(req,res,next) => {
+// export const sendMessage = asyncHandler(async(req,res,next) => {
+//     try {
+//         const { messageType } = req.body;
+//         const {id:receiverId} = req.params;
+//         const senderId = req.user._id;
+//         if(!req.user || !req.user._id){
+//             return next(new apiError('User not authenticated', 401));
+//         }
+//         let conversation = await Conversation.findOne({
+//             participants: { $all: [senderId, receiverId] }
+//         });
+//         if(!conversation){
+//             conversation = await Conversation.create({
+//                 participants : [senderId, receiverId]
+//             });
+//         }
+//         const roomId = generateRoomId(...conversation.participants);
+//         const newMessage = new Message({
+//             senderId,
+//             receiverId,
+//            // participants,
+//             message: req.body.message,
+//             messageType,
+//             roomId,  
+//             isRead: false,
+//             seenBy: senderId,
+//         });
+//         console.log(roomId);
+//         if(!newMessage){
+//             return next(new apiError('Failed to send message',400));
+//         }
+//         conversation.messages.push(newMessage._id);
+//         // await conversation.save();
+//         // await newMessage.save();
+//         await Promise.all([conversation.save(), newMessage.save()]);
+
+//         res.status(201).json({
+//             data: sanitizeMessage(newMessage),
+//         });
+
+//     } catch(err){
+//         console.log('Error in send message',err);
+//         return next(new apiError('Server Error',500));
+//     }
+// });
+export const sendMessage = asyncHandler(async (req, res, next) => {
     try {
-        const { messageType } = req.body;
-        const {id:receiverId} = req.params;
+        const { messageType, message } = req.body;
+        const { id: receiverId } = req.params;
         const senderId = req.user._id;
-        if(!req.user || !req.user._id){
+
+        if (!req.user || !req.user._id) {
             return next(new apiError('User not authenticated', 401));
         }
+
+        // ❌ منع إرسال رسالة لنفسك
+        if (senderId.toString() === receiverId.toString()) {
+            return next(new apiError('You cannot send a message to yourself', 400));
+        }
+
+        // ترتيب المشاركين
+        const participants = [senderId.toString(), receiverId.toString()].sort();
+
         let conversation = await Conversation.findOne({
-            participants: { $all: [senderId, receiverId] }
+            participants: { $all: participants },
+            isGroup: false
         });
-        if(!conversation){
+
+        if (!conversation) {
             conversation = await Conversation.create({
-                participants : [senderId, receiverId]
+                participants,
+                isGroup: false
             });
         }
-        const roomId = generateRoomId(...conversation.participants);
+
+        const roomId = generateRoomId(...participants);
+
         const newMessage = new Message({
             senderId,
             receiverId,
-           // participants,
+            message,
             messageType,
-            roomId,  
+            roomId,
             isRead: false,
             seenBy: senderId,
+            conversationId: conversation._id,
         });
-        console.log(roomId);
-        if(!newMessage){
-            return next(new apiError('Failed to send message',400));
-        }
+
         conversation.messages.push(newMessage._id);
-        // await conversation.save();
-        // await newMessage.save();
+
         await Promise.all([conversation.save(), newMessage.save()]);
 
+        const populatedMessage = await Message.findById(newMessage._id)
+        .populate({ path: 'senderId', select: '_id name avatar' })
+        .populate({ path: 'receiverId', select: '_id name avatar' });
+
         res.status(201).json({
-            data: sanitizeMessage(newMessage),
+        data: sanitizeMessage(populatedMessage),
         });
 
-    } catch(err){
-        console.log('Error in send message',err);
-        return next(new apiError('Server Error',500));
+
+    } catch (err) {
+        console.log('Error in send message', err);
+        return next(new apiError('Server Error', 500));
     }
 });
+
 
 // @desc    Get messages
 // @route   GET/ api/v1/message/getMessages/id
 // @access  Public
 export const getMessages = asyncHandler(async(req,res,next)=>{
     try{
-
         const {id:userToChatId} = req.params; // Receiver id
-        //const senderId = req.user._id;
+        const senderId = req.user._id;
         if(!req.user || !req.user._id){
             return next(new apiError('User not authenticated', 401));
         }

@@ -3,7 +3,9 @@ import express from 'express';
 import {
     createStory,
     getStatusPageData,
-    deleteStory
+    deleteStory,
+    getStoryById,
+    getStoriesByUserId
 } 
 from '../controller/storyController.js';
 
@@ -20,4 +22,12 @@ storyRouter.route('/status')
 // Delete a story
 storyRouter.route('/deleteStory/:id')
     .delete(protectRoute, deleteStory);
+
+// Get a single story by ID
+storyRouter.route('/status/:id')
+    .get(protectRoute, getStoryById);
+
+// Get Stories By User Id
+storyRouter.route('/user/:userId')
+    .get(protectRoute, getStoriesByUserId);
 export default storyRouter;

@@ -10,7 +10,7 @@ import apiError from '../utils/apiError.js';
 import { sanitizeUser } from '../utils/sanitize.js';
 import { generateToken } from '../utils/generateToken.js';
 import cloudinary from '../utils/cloudinary.js';
-import {sendPasswordResetEmail , sendVerificationEmail} from '../utils/emails.js';
+import {reSendVerificationEmail, sendPasswordResetEmail , sendVerificationEmail} from '../utils/emails.js';
 
 
 const uploadToCloudinary = (buffer, filename, folder, format = 'jpeg', quality = 'auto') => {
@@ -110,36 +110,98 @@ export const signup = asyncHandler(async (req, res, next) => {
 // @desc    Verify Email
 // @route   POST /api/auth/verify-email
 // @access  Public
-export const verifyEmail = asyncHandler(async (req, res, next) => {
-  const {verificationCode , email} = req.body;
 
-  if (!verificationCode) {
-      return next(new apiError('Verification code is required', 400));
+// export const verifyEmail = asyncHandler(async (req, res, next) => {
+//   const { verificationCode, email } = req.body;
+
+//   if (!verificationCode || !email) {
+//     return next(new apiError("Verification code and email are required", 400));
+//   }
+
+//   const hashedCode = crypto
+//     .createHash("sha256")
+//     .update(verificationCode)
+//     .digest("hex");
+
+//   const user = await User.findOne({
+//     email,
+//     verificationCode: hashedCode,
+//     verificationCodeExpiresAt: { $gt: Date.now() },
+//   });
+
+//   if (!user) {
+//     return next(new apiError("Invalid or expired verification code", 400));
+//   }
+
+//   user.isVerified = true;
+//   user.verificationCode = undefined;
+//   user.verificationCodeExpiresAt = undefined;
+
+//   await user.save();
+
+//   const token = generateToken(user._id, res); 
+
+//   res.status(200).json({
+//     status: "success",
+//     message: "Email verified successfully.",
+//     token,
+//     user: {
+//       _id: user._id,
+//       name: user.name,
+//       email: user.email,
+//       phone: user.phone,
+//       profile_picture: user.profile_picture,
+//       isVerified: user.isVerified,
+//     },
+//   });
+// });
+export const verifyEmail = asyncHandler(async (req, res, next) => {
+  const { verificationCode, email } = req.body;
+
+  if (!verificationCode || !email) {
+    return next(new apiError("Verification code and email are required", 400));
   }
-  if (!email) {
-      return next(new apiError('Email is required', 400));
-  }
-  const hashedVerificationCode = crypto.createHash("sha256").update(verificationCode).digest("hex");
+
+  const hashedCode = crypto
+    .createHash("sha256")
+    .update(verificationCode)
+    .digest("hex");
+
   const user = await User.findOne({
-      verificationCode: hashedVerificationCode,
-      verificationCodeExpiresAt: { $gt: Date.now() }
+    email,
+    verificationCode: hashedCode,
+    verificationCodeExpiresAt: { $gt: Date.now() },
   });
 
   if (!user) {
-      return next(new apiError('Invalid or expired verification code', 400));
+    return next(new apiError("Invalid or expired verification code", 400));
   }
-  const token = generateToken(user._id, res);
+
   user.isVerified = true;
   user.verificationCode = undefined;
   user.verificationCodeExpiresAt = undefined;
   await user.save();
 
+  const token = generateToken(user._id, res);
+  user.status = 'online';
+  await user.save();
+
   res.status(200).json({
-      status: 'success',
-      message: 'Email verified successfully. You can now log in..',
-      token
+    status: "success",
+    message: "Email verified and user logged in successfully.",
+    token,
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      profile_picture: user.profile_picture,
+      isVerified: user.isVerified,
+    },
   });
 });
+
+
 
 // @desc    Login with QR Code
 // @route   POST/api/v1/auth/qr-login
@@ -209,7 +271,6 @@ export const googleLogin = asyncHandler(async (req, res, next) => {
   console.log("Received token:", id_token);
 console.log("Expected audience:", process.env.GOOGLE_CLIENT_ID);
   try {
-    // تحقق من صحة التوكن
     const ticket = await client.verifyIdToken({
       idToken: id_token,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -296,6 +357,7 @@ export const verifyResetPassword = asyncHandler(async (req, res, next) => {
       status: 'Success'
   });
 });
+
 // @desc    Reset Password
 // @route   POST/api/auth/reset-password
 // @access  Private
@@ -324,6 +386,43 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
   });
 });  
 
+
+// @desc    Change current user's password
+// @route   PUT /api/v1/auth/change-password
+// @access  Private (Requires Authentication)
+
+export const changePassword = asyncHandler(async (req, res, next) => {
+  const userId = req.user._id; // موجود بعد ما تتأكد من التوكن في middleware
+  const { currentPassword, newPassword } = req.body;
+
+  // التحقق من وجود البيانات
+  if (!currentPassword || !newPassword) {
+    return next(new apiError("Current and new password are required", 400));
+  }
+
+  // إيجاد المستخدم
+  const user = await User.findById(userId).select("+password");
+  if (!user) {
+    return next(new apiError("User not found", 404));
+  }
+
+  // التحقق من كلمة المرور الحالية
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch) {
+    return next(new apiError("Current password is incorrect", 401));
+  }
+
+  // تغيير كلمة المرور
+  user.password = newPassword;
+  await user.save();
+
+  res.status(200).json({
+    status: "success",
+    message: "Password changed successfully",
+  });
+});
+
+
 // @desc    Logout
 // @route   POST/api/v1/auth/logout
 // @access  private
@@ -350,6 +449,40 @@ export const checkAuth = asyncHandler(async(req,res,next)=>{
   }
 });
 
+
+
+// Resend verify
+export const resendVerificationCode = asyncHandler(async (req, res, next) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return next(new apiError("Email is required", 400));
+  }
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return next(new apiError("User not found", 404));
+  }
+
+  if (user.isVerified) {
+    return next(new apiError("Email is already verified", 400));
+  }
+
+  // Generate new verification code
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const hashedCode = crypto.createHash("sha256").update(verificationCode).digest("hex");
+
+  user.verificationCode = hashedCode;
+  user.verificationCodeExpiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
+  await user.save();
+
+  await reSendVerificationEmail(user.email, user.name, verificationCode); // use the helper function
+
+  res.status(200).json({
+    message: "Verification code resent successfully",
+  });
+});
 
 
 

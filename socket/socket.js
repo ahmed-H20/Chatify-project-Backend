@@ -9,8 +9,9 @@ let onlineUsers = {}; // تخزين المستخدمين المتصلين
 export const setupSocketServer = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: '*',
+      origin: ['http://localhost:3000', 'http://localhost:3000'],
       methods: ['GET', 'POST'],
+      credentials: true, 
     },
   });
 
@@ -26,28 +27,91 @@ export const setupSocketServer = (server) => {
       console.log(`👤 User ${userId} registered with socket ID ${socket.id}`);
     });
 
+    socket.on("typing", ({ senderId, receiverId }) => {
+      const roomId = generateRoomId(senderId, receiverId)
+      io.to(roomId).emit("userTyping", { senderId })
+    })
+
+
     // إرسال رسالة خاصة
-    socket.on('sendMessage', async ({ senderId, receiverId, message }) => {
-      const roomId = generateRoomId(senderId, receiverId);
-      socket.join(roomId);
+// داخل sendMessage socket event فقط
+// داخل sendMessage socket event فقط
+socket.on('sendMessage', async ({ senderId, receiverId, message }) => {
+  const roomId = generateRoomId(senderId, receiverId);
+  socket.join(roomId);
 
-      const newMessage = new Message({
-        senderId,
-        receiverId,
-        messageType: 'text',
-        participants: [senderId, receiverId],
-        message,
-      });
+  const newMessage = new Message({
+    senderId,
+    receiverId,
+    messageType: 'text',
+    participants: [senderId, receiverId],
+    message,
+    isRead: false,
+  });
 
-      await newMessage.save();
+  await newMessage.save();
 
-      io.to(roomId).emit('receiveMessage', {
-        senderId,
-        message,
-      });
+  let sender = { name: "Unknown", avatar: "" };
+  try {
+    const senderUser = await Message.findById(newMessage._id).populate("senderId", "name avatar");
+    if (senderUser && senderUser.senderId) {
+      sender = {
+        name: senderUser.senderId.name,
+        avatar: senderUser.senderId.avatar,
+      };
+    }
+  } catch (err) {
+    console.error("❌ Failed to populate sender info:", err);
+  }
 
-      console.log(`✉️ Message sent in room ${roomId}`);
+  const receiverSocketId = onlineUsers[receiverId];
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("updateChatList", {
+      id: receiverId,
+      name: sender.name,
+      avatar: sender.avatar,
+      message: message,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      unread: true,
     });
+  }
+
+  io.to(roomId).emit("receiveMessage", {
+    id: newMessage._id,
+    content: newMessage.message,
+    senderId: newMessage.senderId,
+    createdAt: newMessage.createdAt,
+    isRead: newMessage.isRead,
+  });
+
+  console.log(`✉️ Message sent in room ${roomId}`);
+});
+
+
+
+
+  socket.on("readMessage", async ({ userId, senderId, receiverId }) => {    
+    const roomId = generateRoomId(senderId, receiverId);
+    try {
+      const result = await Message.updateMany(
+        {
+          participants: { $all: [senderId, receiverId] }, 
+          receiverId: receiverId,
+          isRead: false,
+        },
+        { $set: { isRead: true } }
+      );
+
+      console.log(`✅ Updated ${result.modifiedCount} messages to read`);
+
+      io.to(roomId).emit("messageRead", { readerId: userId, roomId });
+    } catch (error) {
+      console.error("❌ Error updating read status:", error);
+    }
+  });
+
+
+
 
     // بدء مكالمة
     socket.on('startCalling', async ({ callerId, calleeId }) => {
@@ -131,145 +195,3 @@ export const setupSocketServer = (server) => {
   });
 };
 
-
-
-// import express from 'express';
-// import http from 'http';
-// import cors from 'cors';
-// import { Server } from 'socket.io';
-// import Message from '../Models/messageModel.js';
-// import { generateRoomId } from '../utils/generateRoomId.js';
-
-// const server = http.createServer(app);
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: '*',
-//     methods: ['GET', 'POST']
-//   }
-// });
-
-// global.io = io;
-
-// const onlineUsers = {};
-
-// io.on('connection', (socket) => {
-//   console.log('User connected:', socket.id);
-
-// // تسجيل المستخدم
-// socket.on('register', (userId) => {
-//     onlineUsers[userId] = socket.id;
-//     console.log(`User ${userId} registered with socket ID ${socket.id}`);
-//   });
-
-// // إرسال رسالة خاصة
-// socket.on('sendMessage', async ({ senderId, receiverId, message }) => {
-//     const roomId = generateRoomId(senderId, receiverId);
-//     socket.join(roomId);
-
-//     const newMessage = new Message({
-//       senderId,
-//       receiverId,
-//       messageType: 'text',
-//       participants: [senderId, receiverId],
-//       message,
-//     });
-
-//     await newMessage.save();
-
-//     // إرسال الرسالة للطرفين في نفس الغرفة
-//     io.to(roomId).emit('receiveMessage', {
-//       senderId,
-//       message
-//     });
-
-//     console.log(`Message sent in room ${roomId}`);
-//   });
-
-// // إجراء مكالمة
-// socket.on('callUser', ({ callerId, calleeId }) => {
-//     const roomId = generateRoomId(callerId, calleeId);
-//     socket.join(roomId);
-
-//     const calleeSocket = onlineUsers[calleeId];
-//     if (calleeSocket) {
-//       io.to(calleeSocket).emit('incomingCall', {
-//         callerId,
-//         roomId
-//       });
-//       console.log(`Call from ${callerId} to ${calleeId} in room ${roomId}`);
-//     }
-//   });
-
-// // الانضمام لغرفة
-// socket.on('joinRoom', ({ user1, user2 }) => {
-//     const roomId = generateRoomId(user1, user2);
-//     socket.join(roomId);
-//     console.log(`${socket.id} joined room ${roomId}`);
-//   });
-
-// // قبول المكالمة
-// socket.on('acceptCall', ({ roomId }) => {
-//     socket.join(roomId);
-//     socket.to(roomId).emit('callAccepted');
-//   });
-
-// // إنهاء المكالمة
-// socket.on('endCall', ({ roomId }) => {
-//     io.to(roomId).emit('callEnded');
-//   });
-
-// // إشارات WebRTC
-// socket.on('webrtcOffer', ({ roomId, offer }) => {
-//     socket.to(roomId).emit('webrtcOffer', offer);
-//   });
-
-// socket.on('webrtcAnswer', ({ roomId, answer }) => {
-//     socket.to(roomId).emit('webrtcAnswer', answer);
-//   });
-
-// socket.on('webrtcCandidate', ({ roomId, candidate }) => {
-//     socket.to(roomId).emit('webrtcCandidate', candidate);
-//   });
-
-// socket.on('rejectCall', ({ roomId }) => {
-//     io.to(roomId).emit('callRejected');
-//   });
-
-// // عندما يبدأ الاتصال
-// socket.on('startCalling', ({ callerId, calleeId, roomId }) => {
-//   io.to(roomId).emit('calling', { callerId }); // للمستقبل: "يرن"
-//   console.log(` Calling from ${callerId} to ${calleeId}`);
-// });
-
-// // عندما يكون "جارٍ الاتصال"
-// socket.on('callingProgress', ({ roomId }) => {
-//   io.to(roomId).emit('callProgress', { status: 'calling' });
-// });
-
-// //  تم الرفض
-// socket.on('rejectCall', ({ roomId }) => {
-//   io.to(roomId).emit('callRejected');
-//   console.log(`Call rejected in room ${roomId}`);
-// });
-
-// // تم إنهاء المكالمة
-// socket.on('endCall', ({ roomId }) => {
-//   io.to(roomId).emit('callEnded');
-//   console.log(`Call ended in room ${roomId}`);
-// });
-
-
-// // قطع الاتصال
-// socket.on('disconnect', () => {
-//     console.log('User disconnected:', socket.id);
-//     for (const userId in onlineUsers) {
-//       if (onlineUsers[userId] === socket.id) {
-//         delete onlineUsers[userId];
-//         break;
-//       }
-//     }
-//   });
-// });
-
-// export { app, server, io };

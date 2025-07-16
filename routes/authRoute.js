@@ -12,6 +12,8 @@ import{
     forgetPassword,
     verifyResetPassword,
     resetPassword,
+    resendVerificationCode,
+    changePassword,
 }
 from '../controller/authController.js';
 
@@ -47,7 +49,7 @@ auth.route('/google')
 // .post(loginWebSiteValidator,loginWebSite);
 // Forget Password
 auth.route('/forgetPassword')
-.post(protectRoute,forgetPassword);
+.post(forgetPassword);
 // Forget Password
 auth.route('/verifyResetPassword')
 .post(verifyResetPassword);
@@ -60,5 +62,9 @@ auth.route('/logout')
 // ckeck Authentication
 auth.route('/checkAuth')
     .get(protectRoute,checkAuth);
+
+auth.post("/resend-code", resendVerificationCode);
+
+auth.put("/change-password", protectRoute, changePassword)
 
 export default auth;
